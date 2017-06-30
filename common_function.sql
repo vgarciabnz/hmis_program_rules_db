@@ -492,3 +492,37 @@ $$
 LANGUAGE plpgsql;
 
 
+-- Put a number to each event belonging to a program stage. Events are ordered by 'executiondate' followed by 'created'. The rank is saved in the dataelement provided.
+-- It is necessary to sum an index to each program lastupdate date: if they are exactly the same, the system has an strange behaviour.
+--
+-- _pi_id: programinstanceid
+-- _ps_src: programstage uid
+-- _de_dst: dataelement code (destination). The event rank will be saved in this dataelement.
+
+CREATE OR REPLACE FUNCTION number_events_in_repeatable_program_stage (_pi_id integer, _ps_src character varying, _de_dst character varying) RETURNS void AS $$
+
+	DECLARE event_id_with_rank RECORD;
+
+	BEGIN
+		FOR event_id_with_rank IN (
+			SELECT psi.programstageinstanceid, rank() OVER (ORDER BY psi.executiondate, psi.created), MAX(psi.lastupdated) OVER () AS lastupdated FROM programstageinstance psi 
+				INNER JOIN programstage ps ON psi.programstageid = ps.programstageid
+				WHERE ps.uid = _ps_src
+				AND psi.programinstanceid = _pi_id
+				AND psi.deleted = false
+		)
+		
+		LOOP
+			PERFORM upsert_trackedentitydatavalue(
+				event_id_with_rank.programstageinstanceid,
+				(SELECT dataelementid FROM dataelement WHERE code = _de_dst),
+				event_id_with_rank.rank::text,
+				'auto-generated',
+				event_id_with_rank.lastupdated + event_id_with_rank.rank * interval '1 milliseconds',
+				event_id_with_rank.lastupdated + event_id_with_rank.rank * interval '1 milliseconds');
+		END LOOP;
+	END;
+$$
+LANGUAGE plpgsql;
+
+

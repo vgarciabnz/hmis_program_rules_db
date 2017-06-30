@@ -20,6 +20,8 @@
 -- Session mode: TK_MH54
 -- Patient took psychiatry treatment: TK_MH72
 -- Number of followups: TK_MH52
+-- Consultation number: TK_MH76
+
 /* 
 --DROPS-----------
 
@@ -293,6 +295,9 @@ $$
 			
 			-- Patient referred 
 			PERFORM mh_save_patient_referred ( program_instance_id, 'TK_MH73',  'XuThsezwYbZ');
+			
+			-- Save consultation number in each consultation (consultation index: 1st, 2nd, 3rd, etc)
+			PERFORM number_events_in_repeatable_program_stage ( program_instance_id, 'tmsr4EJaSPz', 'TK_MH76');
 			
 			
 			
