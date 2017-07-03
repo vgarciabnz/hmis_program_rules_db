@@ -23,12 +23,13 @@
 /* 
 --DROPS-----------
 
-DROP FUNCTION mh_save_length_of_intervention (pi_id INTEGER);
+DROP FUNCTION mh_save_length_of_intervention (pi_id INTEGER,_ps_start VARCHAR(11),_ps_end VARCHAR(11), _ps_target VARCHAR(11) )  ;
 DROP FUNCTION mh_save_number_consultations_by_type( _pi_id integer, _value text, _de_target VARCHAR(50), _ps_target VARCHAR(11));
 DROP FUNCTION mh_save_session_mode ( _pi_id integer,_de_target VARCHAR(50), _ps_target VARCHAR(11));
 DROP FUNCTION mh_save_patient_under_psycotropics( _pi_id integer, _de_target VARCHAR(50), _ps_target VARCHAR(11));
 DROP FUNCTION mh_save_patient_referred ( _pi_id integer, _de_target VARCHAR(50), _ps_target VARCHAR(11)) ;
-DROP FUNCTION mh_execute_mental_health_individual (last_updated timestamp without time zone);
+DROP FUNCTION mh_save_followup_count (_pi_id INTEGER, _ps_target varchar (11));
+DROP FUNCTION execute_mental_health_individual (last_updated timestamp without time zone);
 
 -----
 
@@ -36,16 +37,16 @@ DROP FUNCTION mh_execute_mental_health_individual (last_updated timestamp withou
  */
 -----------------------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION mh_save_length_of_intervention (pi_id INTEGER) RETURNS void AS $$
+CREATE OR REPLACE FUNCTION mh_save_length_of_intervention (pi_id INTEGER,_ps_start VARCHAR(11),_ps_end VARCHAR(11), _ps_target VARCHAR(11) )  RETURNS void AS $$
 
 	DECLARE lenght_with_date value_with_date;
 	DECLARE target_event_id INTEGER;
 	
 	BEGIN
-		SELECT * INTO lenght_with_date FROM get_days_between_non_repeatable_stages (pi_id, 'bgq04wsYMp7', 'XuThsezwYbZ');
+		SELECT * INTO lenght_with_date FROM get_days_between_non_repeatable_stages (pi_id, _ps_start, _ps_end);
 		
 		SELECT programstageinstanceid INTO target_event_id FROM programstageinstance psi INNER JOIN programstage ps on psi.programstageid = ps.programstageid 
-				WHERE psi.programinstanceid = pi_id AND ps.uid = 'XuThsezwYbZ';
+				WHERE psi.programinstanceid = pi_id AND ps.uid = _ps_target;
 				
 		IF (lenght_with_date.val IS NOT NULL) AND (target_event_id IS NOT NULL)
 		THEN
@@ -74,7 +75,7 @@ DECLARE target_event_id integer;
 
 
   BEGIN
-	SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['bgq04wsYMp7','tmsr4EJaSPz'], 'TK_MH53') where value=_value;
+	SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['tmsr4EJaSPz'], 'TK_MH53') where value=_value;
 	
 	SELECT programstageinstanceid INTO target_event_id FROM programstageinstance psi INNER JOIN programstage ps on psi.programstageid = ps.programstageid 
 			WHERE psi.programinstanceid = _pi_id AND ps.uid = _ps_target;
@@ -129,6 +130,10 @@ BEGIN
 				session_mode.lastupdated,
 				session_mode.lastupdated
 			);
+		ELSE IF session_mode.val IS NULL THEN 
+		
+			DELETE FROM trackedentitydatavalue where programstageinstanceid = target_event_id and dataelementid= (SELECT dataelementid FROM dataelement WHERE code = _de_target);
+		END IF;
 	END IF;
 END;
 $$
@@ -147,7 +152,7 @@ DECLARE target_event_id integer;
 
 
   BEGIN
-	SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['bgq04wsYMp7','tmsr4EJaSPz'], 'TK_MH17') where value='true';
+	SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['tmsr4EJaSPz'], 'TK_MH17') where value='true';
 	
 	
 	IF number_with_date.val is not null 
@@ -200,7 +205,7 @@ DECLARE number_with_date value_with_date;
 DECLARE target_event_id integer;
 
 BEGIN
-	SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['bgq04wsYMp7','tmsr4EJaSPz'], 'TK_MH61');
+	SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['tmsr4EJaSPz'], 'TK_MH61');
 	
 	SELECT programstageinstanceid INTO target_event_id FROM programstageinstance psi INNER JOIN programstage ps on psi.programstageid = ps.programstageid 
 			WHERE psi.programinstanceid = _pi_id AND ps.uid = _ps_target;
@@ -242,6 +247,38 @@ $$
 LANGUAGE 'plpgsql';
 
 
+-----------------------------------------------------------------------------------------------
+
+ CREATE OR REPLACE FUNCTION mh_save_followup_count (_pi_id INTEGER, _ps_target varchar (11)) RETURNS void as
+ 
+ $$
+ 
+
+	DECLARE count_with_date value_with_date;
+	DECLARE target_event_id INTEGER;
+	
+	BEGIN
+		SELECT (value::integer - 1)::text,lastupdated INTO count_with_date FROM get_data_value_of_first_event (_pi_id, 'XuThsezwYbZ','TK_MH58');
+		
+		SELECT programstageinstanceid INTO target_event_id FROM get_data_value_of_first_event (_pi_id, _ps_target,'TK_MH58');
+		
+		IF (count_with_date.val IS NOT NULL) AND (target_event_id IS NOT NULL)
+		THEN			
+
+			RAISE NOTICE 'value %', count_with_date.val;	
+				
+			PERFORM upsert_trackedentitydatavalue(
+				target_event_id,
+				(SELECT dataelementid FROM dataelement WHERE code = 'TK_MH52'),
+				count_with_date.val,
+				'auto-generated',
+				count_with_date.lastupdated,
+				count_with_date.lastupdated
+			);
+		END IF;
+	END;
+$$
+LANGUAGE plpgsql;
 
 
 -------------------------------------------------------------------------
@@ -261,16 +298,16 @@ $$
 			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH6', 'bgq04wsYMp7', 'TK_MH6', 'XuThsezwYbZ'); -- Events
 			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH1', 'bgq04wsYMp7', 'TK_MH1', 'XuThsezwYbZ'); --Symptoms
 			-- Save length of intervention
-			PERFORM mh_save_length_of_intervention (program_instance_id);
+			PERFORM mh_save_length_of_intervention (program_instance_id,'tmsr4EJaSPz','XuThsezwYbZ','XuThsezwYbZ'); -- program instance, program stage start date, ps end date, ps target
 			
 			-- Severity of symptoms and function variation
-			PERFORM substract_datavalue_between_non_repeatable_stages (program_instance_id,'TK_MH13','bgq04wsYMp7','TK_MH13','XuThsezwYbZ','TK_MH38','XuThsezwYbZ');
-			PERFORM substract_datavalue_between_non_repeatable_stages (program_instance_id,'TK_MH14','bgq04wsYMp7','TK_MH14','XuThsezwYbZ','TK_MH39','XuThsezwYbZ');
+			PERFORM substract_datavalue_between_non_repeatable_stages (program_instance_id,'TK_MH13','tmsr4EJaSPz','TK_MH13','XuThsezwYbZ','TK_MH38','XuThsezwYbZ'); -- pi, dataelement1, ps1, dt2,ps2, dt target, ps target
+			PERFORM substract_datavalue_between_non_repeatable_stages (program_instance_id,'TK_MH14','tmsr4EJaSPz','TK_MH14','XuThsezwYbZ','TK_MH39','XuThsezwYbZ');
 				
 			-- number of consultations
-			PERFORM save_events_count(program_instance_id,array['bgq04wsYMp7','tmsr4EJaSPz'],'TK_MH58','XuThsezwYbZ');
+			PERFORM save_events_count(program_instance_id,array['tmsr4EJaSPz'],'TK_MH58','XuThsezwYbZ');
 			-- number of followups
-			PERFORM save_events_count(program_instance_id,array['tmsr4EJaSPz'],'TK_MH52','XuThsezwYbZ');
+			PERFORM mh_save_followup_count (program_instance_id,'XuThsezwYbZ');
 			
 			--average time between sessions
 			PERFORM divide_datavalue_between_non_repeatable_stages  (program_instance_id,'TK_MH24','XuThsezwYbZ','TK_MH52','XuThsezwYbZ','TK_MH23','XuThsezwYbZ');
