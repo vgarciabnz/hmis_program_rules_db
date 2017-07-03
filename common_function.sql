@@ -3,10 +3,12 @@
 
 -- The value of 'lastupdated' property for new/updated datavalues must be the latest one of the dataelements involved in the calculation. The programstageinstance must be updated accordingly.
 
-
+/* 
 -----------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------- DROP FUNCTION ------------------------------------------------------------------
- DROP FUNCTION get_data_value_by_program_stages( _programinstanceid integer, _programstageuid text [], _dataelementcode text) ;
+ DROP FUNCTION get_first_event_by_programstage( _programinstanceid integer, _programstageuid text) ;
+ DROP FUNCTION get_data_value_of_first_event ( _programinstanceid integer, _ps_uid VARCHAR(11),  _de_code VARCHAR(50) );
+ DROP FUNCTION get_data_value_by_program_stages( _programinstanceid integer, _programstageuid text [], _dataelementcode text) ; 
  DROP FUNCTION upsert_trackedentitydatavalue(integer, integer, character varying, character varying, timestamp without time zone, timestamp without time zone);
  DROP FUNCTION get_programinstance_modified_after(character varying, timestamp without time zone);
  DROP FUNCTION copy_datavalue_between_non_repeatable_stages(integer, character varying, character varying, character varying, character varying);
@@ -15,10 +17,51 @@
  DROP FUNCTION substract_datavalue_between_non_repeatable_stages(integer, character varying, character varying, character varying, character varying, character varying, character varying);
  DROP FUNCTION divide_datavalue_between_non_repeatable_stages(integer, character varying, character varying, character varying, character varying, character varying, character varying);
  DROP FUNCTION save_events_count (_pi_id INTEGER,ps_array VARCHAR(11)[],_de_target VARCHAR(50), _ps_target VARCHAR(11));
-
+ */
  
  -----------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------- FUNCTIONS ------------------------------------------------------------------
+
+  
+
+ ----- Obtain oldest (or unique) event of a program within a defined stages
+ 
+CREATE OR REPLACE FUNCTION get_first_event_by_programstage( _programinstanceid integer, _programstageuid text) returns setof programstageinstance AS $$
+ 
+
+ BEGIN
+
+      
+    RETURN query (SELECT * FROM programstageinstance 
+    
+       WHERE  programinstanceid=_programinstanceid and programstageid in (select programstageid from programstage where programstage.uid= _programstageuid)
+
+       and deleted='f'
+       order by executiondate,programstageinstanceid LIMIT 1
+
+       );
+  END;
+  $$
+  LANGUAGE 'plpgsql';  
+  
+  
+  ---Obtain data value from a dataelement of the first (oldest) event of an specific stage
+CREATE OR REPLACE FUNCTION get_data_value_of_first_event ( _programinstanceid integer, _ps_uid VARCHAR(11),  _de_code VARCHAR(50) ) RETURNS SETOF trackedentitydatavalue AS
+
+$$ 
+
+DECLARE _event_id integer;
+
+BEGIN 
+
+	SELECT programstageinstanceid INTO _event_id from get_first_event_by_programstage (_programinstanceid,_ps_uid);
+
+RETURN QUERY (select * from trackedentitydatavalue tk where tk.programstageinstanceid=_event_id and dataelementid in (select dataelementid from dataelement where dataelement.code=_de_code));
+
+END;
+$$
+LANGUAGE 'plpgsql';  
+
 
 --- Obtain data value from a dataelement within a specific event
 
@@ -38,6 +81,7 @@ $BODY$
   END;
   $BODY$
   LANGUAGE plpgsql;
+
 
 -- Upsert trackedentitydatavalue
 CREATE OR REPLACE FUNCTION upsert_trackedentitydatavalue (
@@ -159,9 +203,9 @@ DECLARE aux_datavalue trackedentitydatavalue;
 		
 			THEN 
 							
-			aux_datavalue = get_data_value_by_program_stages(
+			aux_datavalue = get_data_value_of_first_event(
 			_pi_id,
-			array [_ps_src],
+			_ps_src,
 			_de_src
 			);
 
@@ -307,15 +351,15 @@ DECLARE substract value_with_date;
 			
 				THEN 
 								
-				aux_datavalue_src1 = get_data_value_by_program_stages(
+				aux_datavalue_src1 = get_data_value_of_first_event(
 				_pi_id,
-				array[_ps_src1],
+				_ps_src1,
 				_de_src1
 				);		
 				
-				aux_datavalue_src2= get_data_value_by_program_stages(
+				aux_datavalue_src2= get_data_value_of_first_event(
 				_pi_id,
-				array[_ps_src2],
+				_ps_src2,
 				_de_src2
 				);		
 				
@@ -403,8 +447,8 @@ DECLARE division value_with_date;
 			
 				THEN 
 								
-				SELECT * INTO aux_datavalue_src1 FROM get_data_value_by_program_stages(_pi_id, array[_ps_src1],	_de_src1);		
-				SELECT * INTO aux_datavalue_src2 FROM get_data_value_by_program_stages(_pi_id, array[_ps_src2], _de_src2);
+				SELECT * INTO aux_datavalue_src1 FROM get_data_value_of_first_event(_pi_id, _ps_src1,	_de_src1);		
+				SELECT * INTO aux_datavalue_src2 FROM get_data_value_of_first_event(_pi_id, _ps_src2, _de_src2);
 				
 				SELECT programstageinstanceid INTO target_event_id FROM programstageinstance psi INNER JOIN programstage ps on psi.programstageid = ps.programstageid 
 						WHERE psi.programinstanceid = _pi_id AND ps.uid = _ps_target; -- if there is value for both datavalues within the events
