@@ -21,6 +21,15 @@
 -- Patient took psychiatry treatment: TK_MH72
 -- Number of followups: TK_MH52
 -- Consultation number: TK_MH76
+-- Type of individual intervention: TK_MH11
+-- Type of consultation: TK_MH10
+-- Severity of symptoms: TK_MH13
+-- Functioning reduction: TK_MH14
+-- Complementary service - Medical care: TK_MH60
+-- Complementary service - Psychiatric care: TK_MH61
+-- Complementary service - Social service: TK_MH63
+-- Complementary service - Legal service: TK_MH64
+-- Complementary service - Other: TK_MH65
 
 /* 
 --DROPS-----------
@@ -296,9 +305,19 @@ $$
 		FOR program_instance_id in (SELECT * FROM get_programinstance_modified_after('ORvg6A5ed7z', last_updated))
 		LOOP
 			-- Copy Diagnosis, Main category events, Main category symptoms
-			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH5', 'bgq04wsYMp7', 'TK_MH5', 'XuThsezwYbZ'); --Diagnosis
-			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH6', 'bgq04wsYMp7', 'TK_MH6', 'XuThsezwYbZ'); -- Events
-			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH1', 'bgq04wsYMp7', 'TK_MH1', 'XuThsezwYbZ'); --Symptoms
+			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH5', 'bgq04wsYMp7', 'TK_MH5', 'XuThsezwYbZ'); --Diagnosis (from first consultation to closure)
+			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH6', 'bgq04wsYMp7', 'TK_MH6', 'XuThsezwYbZ'); -- Events (from first consultation to closure)
+			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH1', 'bgq04wsYMp7', 'TK_MH1', 'XuThsezwYbZ'); --Symptoms (from first consultation to closure)
+			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH11', 'tmsr4EJaSPz', 'TK_MH11', 'bgq04wsYMp7'); -- Type of individual intervention (from first consultation to admission)
+			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH10', 'tmsr4EJaSPz', 'TK_MH10', 'bgq04wsYMp7'); -- Type of consultation (from first consultation to admission)
+			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH13', 'tmsr4EJaSPz', 'TK_MH13', 'bgq04wsYMp7'); -- Severity of symptoms (from first consultation to admission)
+			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH14', 'tmsr4EJaSPz', 'TK_MH14', 'bgq04wsYMp7'); -- Functioning reduction (from first consultation to admission)
+			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH60', 'tmsr4EJaSPz', 'TK_MH60', 'bgq04wsYMp7'); -- Complementary service - Medical care (from first consultation to admission)
+			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH61', 'tmsr4EJaSPz', 'TK_MH61', 'bgq04wsYMp7'); -- Complementary service - Psychiatric  care (from first consultation to admission)
+			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH63', 'tmsr4EJaSPz', 'TK_MH63', 'bgq04wsYMp7'); -- Complementary service - Social service (from first consultation to admission)
+			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH64', 'tmsr4EJaSPz', 'TK_MH64', 'bgq04wsYMp7'); -- Complementary service - Legal service (from first consultation to admission)
+			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH65', 'tmsr4EJaSPz', 'TK_MH65', 'bgq04wsYMp7'); -- Complementary service - Other (from first consultation to admission)
+			
 			-- Save length of intervention
 			PERFORM mh_save_length_of_intervention (program_instance_id,'tmsr4EJaSPz','XuThsezwYbZ','XuThsezwYbZ'); -- program instance, program stage start date, ps end date, ps target
 			
