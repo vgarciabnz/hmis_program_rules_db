@@ -88,7 +88,7 @@ $BODY$
     RETURN QUERY (SELECT tedv.* FROM trackedentitydatavalue tedv
       INNER JOIN programstageinstance psi ON tedv.programstageinstanceid = psi.programstageinstanceid
       WHERE psi.programinstanceid = _pi_id
-	  psi.deleted = false
+	  AND psi.deleted = false
       AND psi.programstageid IN (SELECT programstageid FROM programstage WHERE uid = any( _ps_array))
       AND dataelementid IN (SELECT dataelementid FROM dataelement WHERE code = _de_code));
   END;
