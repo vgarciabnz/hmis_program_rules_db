@@ -88,6 +88,7 @@ $BODY$
     RETURN QUERY (SELECT tedv.* FROM trackedentitydatavalue tedv
       INNER JOIN programstageinstance psi ON tedv.programstageinstanceid = psi.programstageinstanceid
       WHERE psi.programinstanceid = _pi_id
+	  psi.deleted = false
       AND psi.programstageid IN (SELECT programstageid FROM programstage WHERE uid = any( _ps_array))
       AND dataelementid IN (SELECT dataelementid FROM dataelement WHERE code = _de_code));
   END;
@@ -568,14 +569,7 @@ CREATE OR REPLACE FUNCTION get_datavalue_addition_in_repeatable_stage (_pi_id in
 	DECLARE total value_with_date;
 	
 	BEGIN
-		SELECT SUM(tkdv.value::integer)::text, MAX(tkdv.lastupdated) INTO total FROM trackedentitydatavalue tkdv
-			INNER JOIN programstageinstance psi ON tkdv.programstageinstanceid = psi.programstageinstanceid
-			INNER JOIN programstage ps ON psi.programstageid = ps.programstageid
-			INNER JOIN dataelement de ON tkdv.dataelementid = de.dataelementid
-			WHERE ps.uid = _ps_src
-			AND psi.programinstanceid = _pi_id
-			AND psi.deleted = false
-			AND de.code = _de_src;
+		SELECT SUM(value::integer)::text, MAX(lastupdated) INTO total FROM get_data_value_by_program_stages (_pi_id, ARRAY[_ps_src], _de_src);
 		
 		RETURN total;			
 	END;
