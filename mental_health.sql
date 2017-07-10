@@ -353,6 +353,7 @@ CREATE OR REPLACE FUNCTION mh_save_total_beneficiaries (_pi_id INTEGER, _de_targ
 			
 			IF total.val IS NULL
 			THEN
+				-- If datavalue "New beneficiaries" has no value, it means that type of consultation is individual. Place a '1' in that case.
 				SELECT '1', MAX(lastupdated) INTO total FROM get_programstageinstance (_pi_id, 'tmsr4EJaSPz');
 			END IF;
 				
