@@ -558,3 +558,41 @@ $$
 LANGUAGE plpgsql;
 
 
+CREATE OR REPLACE FUNCTION get_datavalue_addition_in_repeatable_stage (_pi_id integer, _de_src character varying, _ps_src character varying) RETURNS value_with_date AS $$
+
+	DECLARE total value_with_date;
+	
+	BEGIN
+		SELECT SUM(value::integer)::text, MAX(lastupdated) INTO total FROM trackedentitydatavalue tkdv
+			INNER JOIN programstageinstance psi ON tkdv.programstageinstanceid = psi.programstageinstanceid
+			INNER JOIN programstage ps ON psi.programstageid = ps.programstageid
+			INNER JOIN dataelement de ON tkdv.dataelementid = de.dataelementid
+			WHERE ps.uid = _ps_src
+			AND psi.programinstanceid = _pi_id
+			AND psi.deleted = false
+			AND de.code = _de_src;
+		
+		RETURN total;			
+	END;
+$$
+LANGUAGE plpgsql;
+
+
+
+CREATE OR REPLACE FUNCTION save_datavalue_addition_in_repeateble_stage (
+	_pi_id integer,
+	_de_src character varying,
+	_ps_src character varying,
+	_de_dst character varying,
+	_ps_dst character varying
+) RETURNS void AS $$
+
+	DECLARE total value_with_date;
+	
+	BEGIN
+		SELECT * INTO total FROM get_datavalue_addition_in_repeatable_stage (_pi_id, _de_src, _ps_src);
+		
+		IF (total.val IS NOT NULL)
+	END;
+$$
+LANGUAGE plpgsql;
