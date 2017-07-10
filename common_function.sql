@@ -88,6 +88,7 @@ $BODY$
     RETURN QUERY (SELECT tedv.* FROM trackedentitydatavalue tedv
       INNER JOIN programstageinstance psi ON tedv.programstageinstanceid = psi.programstageinstanceid
       WHERE psi.programinstanceid = _pi_id
+	  psi.deleted = false
       AND psi.programstageid IN (SELECT programstageid FROM programstage WHERE uid = any( _ps_array))
       AND dataelementid IN (SELECT dataelementid FROM dataelement WHERE code = _de_code));
   END;
@@ -558,3 +559,19 @@ $$
 LANGUAGE plpgsql;
 
 
+-- This function returns the addition of datavalues belonging to a data element in a repeatable stage.
+--
+-- _pi_id: programinstanceid
+-- _de_src: dataelement code
+-- _ps_src: programstage uid
+CREATE OR REPLACE FUNCTION get_datavalue_addition_in_repeatable_stage (_pi_id integer, _de_src character varying, _ps_src character varying) RETURNS value_with_date AS $$
+
+	DECLARE total value_with_date;
+	
+	BEGIN
+		SELECT SUM(value::integer)::text, MAX(lastupdated) INTO total FROM get_data_value_by_program_stages (_pi_id, ARRAY[_ps_src], _de_src);
+		
+		RETURN total;			
+	END;
+$$
+LANGUAGE plpgsql;

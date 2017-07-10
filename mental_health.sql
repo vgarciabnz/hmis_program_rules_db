@@ -30,6 +30,8 @@
 -- Complementary service - Social service: TK_MH63
 -- Complementary service - Legal service: TK_MH64
 -- Complementary service - Other: TK_MH65
+-- New beneficiaries: TK_MH67
+-- Total beneficiaries: TK_MH68
 
 /* 
 --DROPS-----------
@@ -40,6 +42,7 @@ DROP FUNCTION mh_save_session_mode ( _pi_id integer,_de_target VARCHAR(50), _ps_
 DROP FUNCTION mh_save_patient_under_psycotropics( _pi_id integer, _de_target VARCHAR(50), _ps_target VARCHAR(11));
 DROP FUNCTION mh_save_patient_referred ( _pi_id integer, _de_target VARCHAR(50), _ps_target VARCHAR(11)) ;
 DROP FUNCTION mh_save_followup_count (_pi_id INTEGER, _ps_target varchar (11));
+DROP FUNCTION mh_save_total_beneficiaries (_pi_id INTEGER, _de_target VARCHAR(50), _ps_target VARCHAR(11));
 DROP FUNCTION execute_mental_health_individual (last_updated timestamp without time zone);
 
 -----
@@ -334,6 +337,39 @@ END;
 $$
 LANGUAGE 'plpgsql';
 
+-------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION mh_save_total_beneficiaries (_pi_id INTEGER, _de_target VARCHAR(50), _ps_target VARCHAR(11)) RETURNS void AS $$
+
+	DECLARE dst_event programstageinstance;
+	DECLARE total value_with_date;
+	
+	BEGIN
+		SELECT * INTO dst_event FROM get_programstageinstance (_pi_id, _ps_target);
+		
+		IF dst_event.programstageinstanceid IS NOT NULL
+		THEN
+			SELECT * INTO total FROM get_datavalue_addition_in_repeatable_stage (_pi_id, 'TK_MH67', 'tmsr4EJaSPz');
+			
+			IF total.val IS NULL
+			THEN
+				-- If datavalue "New beneficiaries" has no value, it means that type of consultation is individual. Place a '1' in that case.
+				SELECT '1', MAX(lastupdated) + interval '100 milliseconds' INTO total FROM get_programstageinstance (_pi_id, 'tmsr4EJaSPz');
+			END IF;
+				
+			PERFORM upsert_trackedentitydatavalue(
+				dst_event.programstageinstanceid,
+				(SELECT dataelementid FROM dataelement WHERE code = _de_target),
+				total.val,
+				'auto-generated',
+				total.lastupdated,
+				total.lastupdated);
+								
+		END IF;		
+	END;
+$$
+LANGUAGE plpgsql;
+
 
 -------------------------------------------------------------------------
 
@@ -396,6 +432,9 @@ $$
 			
 			-- Patient referred MSF
 			PERFORM mh_save_patient_referred_MSF ( program_instance_id, 'TK_MH77',  'XuThsezwYbZ');
+			
+			-- Total number of beneficiaries
+			PERFORM mh_save_total_beneficiaries ( program_instance_id, 'TK_MH68', 'XuThsezwYbZ');
 			
 			
 			RETURN QUERY SELECT program_instance_id;
