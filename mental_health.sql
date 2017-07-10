@@ -56,8 +56,7 @@ CREATE OR REPLACE FUNCTION mh_save_length_of_intervention (pi_id INTEGER,_ps_sta
 	BEGIN
 		SELECT * INTO lenght_with_date FROM get_days_between_non_repeatable_stages (pi_id, _ps_start, _ps_end);
 		
-		SELECT programstageinstanceid INTO target_event_id FROM programstageinstance psi INNER JOIN programstage ps on psi.programstageid = ps.programstageid 
-				WHERE psi.programinstanceid = pi_id AND ps.uid = _ps_target;
+		SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (pi_id,_ps_target);
 				
 		IF (lenght_with_date.val IS NOT NULL) AND (target_event_id IS NOT NULL)
 		THEN
@@ -88,8 +87,7 @@ DECLARE target_event_id integer;
   BEGIN
 	SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['tmsr4EJaSPz'], 'TK_MH53') where value=_value;
 	
-	SELECT programstageinstanceid INTO target_event_id FROM programstageinstance psi INNER JOIN programstage ps on psi.programstageid = ps.programstageid 
-			WHERE psi.programinstanceid = _pi_id AND ps.uid = _ps_target;
+	SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
 	
 	IF (number_with_date.val IS NOT NULL) AND (target_event_id IS NOT NULL) 
 		THEN
@@ -127,8 +125,7 @@ BEGIN
 
 	END IF;
 	
-	SELECT programstageinstanceid INTO target_event_id FROM programstageinstance psi INNER JOIN programstage ps on psi.programstageid = ps.programstageid 
-			WHERE psi.programinstanceid = _pi_id AND ps.uid = _ps_target;
+	SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
 			
 	IF (session_mode.val IS NOT NULL) AND (target_event_id IS NOT NULL)
 		THEN
@@ -169,8 +166,7 @@ DECLARE target_event_id integer;
 	IF number_with_date.val is not null 
 		THEN
 		
-		SELECT programstageinstanceid INTO target_event_id FROM programstageinstance psi INNER JOIN programstage ps on psi.programstageid = ps.programstageid 
-			WHERE psi.programinstanceid = _pi_id AND ps.uid = _ps_target;
+		SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
 			
 		IF (target_event_id IS NOT NULL)
 			THEN
@@ -218,8 +214,7 @@ DECLARE target_event_id integer;
 BEGIN
 	SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['tmsr4EJaSPz'], 'TK_MH61');
 	
-	SELECT programstageinstanceid INTO target_event_id FROM programstageinstance psi INNER JOIN programstage ps on psi.programstageid = ps.programstageid 
-			WHERE psi.programinstanceid = _pi_id AND ps.uid = _ps_target;
+	SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
 	
 	IF target_event_id IS NOT NULL 
 
@@ -291,6 +286,54 @@ LANGUAGE 'plpgsql';
 $$
 LANGUAGE plpgsql;
 
+------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION mh_save_patient_referred_MSF ( _pi_id integer, _de_target VARCHAR(50), _ps_target VARCHAR(11)) RETURNS void
+AS $$
+
+DECLARE number_with_date value_with_date;
+DECLARE target_event_id integer;
+
+BEGIN
+	SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['tmsr4EJaSPz'], 'TK_MH61') where value='2.1';
+	
+	SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
+	
+	IF target_event_id IS NOT NULL 
+
+		THEN
+
+		RAISE NOTICE 'value %', number_with_date.val;
+		
+		IF number_with_date.val <> '0'
+			THEN
+			PERFORM upsert_trackedentitydatavalue(
+				target_event_id,
+				(SELECT dataelementid FROM dataelement WHERE code = _de_target),
+				'true',
+				'auto-generated',
+				number_with_date.lastupdated,
+				number_with_date.lastupdated
+			);
+
+			ELSE 
+					
+			PERFORM upsert_trackedentitydatavalue(
+				target_event_id,
+				(SELECT dataelementid FROM dataelement WHERE code = _de_target),
+				'false',
+				'auto-generated',
+				number_with_date.lastupdated,
+				number_with_date.lastupdated
+			);
+
+		
+		END IF;
+	END IF;
+	
+END;
+$$
+LANGUAGE 'plpgsql';
+
 
 -------------------------------------------------------------------------
 
@@ -312,14 +355,10 @@ $$
 			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH10', 'tmsr4EJaSPz', 'TK_MH10', 'bgq04wsYMp7'); -- Type of consultation (from first consultation to admission)
 			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH13', 'tmsr4EJaSPz', 'TK_MH13', 'bgq04wsYMp7'); -- Severity of symptoms (from first consultation to admission)
 			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH14', 'tmsr4EJaSPz', 'TK_MH14', 'bgq04wsYMp7'); -- Functioning reduction (from first consultation to admission)
-			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH60', 'tmsr4EJaSPz', 'TK_MH60', 'bgq04wsYMp7'); -- Complementary service - Medical care (from first consultation to admission)
 			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH61', 'tmsr4EJaSPz', 'TK_MH61', 'bgq04wsYMp7'); -- Complementary service - Psychiatric  care (from first consultation to admission)
-			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH63', 'tmsr4EJaSPz', 'TK_MH63', 'bgq04wsYMp7'); -- Complementary service - Social service (from first consultation to admission)
-			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH64', 'tmsr4EJaSPz', 'TK_MH64', 'bgq04wsYMp7'); -- Complementary service - Legal service (from first consultation to admission)
-			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH65', 'tmsr4EJaSPz', 'TK_MH65', 'bgq04wsYMp7'); -- Complementary service - Other (from first consultation to admission)
 			
 			-- Save length of intervention
-			PERFORM mh_save_length_of_intervention (program_instance_id,'tmsr4EJaSPz','XuThsezwYbZ','XuThsezwYbZ'); -- program instance, program stage start date, ps end date, ps target
+			PERFORM mh_save_length_of_intervention (program_instance_id,'bgq04wsYMp7','XuThsezwYbZ','XuThsezwYbZ'); -- program instance, program stage start date, ps end date, ps target
 			
 			-- Severity of symptoms and function variation
 			PERFORM substract_datavalue_between_non_repeatable_stages (program_instance_id,'TK_MH13','tmsr4EJaSPz','TK_MH13','XuThsezwYbZ','TK_MH38','XuThsezwYbZ'); -- pi, dataelement1, ps1, dt2,ps2, dt target, ps target
@@ -355,6 +394,8 @@ $$
 			-- Save consultation number in each consultation (consultation index: 1st, 2nd, 3rd, etc)
 			PERFORM number_events_in_repeatable_program_stage ( program_instance_id, 'tmsr4EJaSPz', 'TK_MH76');
 			
+			-- Patient referred MSF
+			PERFORM mh_save_patient_referred_MSF ( program_instance_id, 'TK_MH77',  'XuThsezwYbZ');
 			
 			
 			RETURN QUERY SELECT program_instance_id;

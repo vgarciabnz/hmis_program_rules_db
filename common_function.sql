@@ -17,12 +17,24 @@
  DROP FUNCTION substract_datavalue_between_non_repeatable_stages(integer, character varying, character varying, character varying, character varying, character varying, character varying);
  DROP FUNCTION divide_datavalue_between_non_repeatable_stages(integer, character varying, character varying, character varying, character varying, character varying, character varying);
  DROP FUNCTION save_events_count (_pi_id INTEGER,ps_array VARCHAR(11)[],_de_target VARCHAR(50), _ps_target VARCHAR(11));
+ DROP FUNCTION number_events_in_repeatable_program_stage (_pi_id integer, _ps_src character varying, _de_dst character varying);
  */
  
  -----------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------- FUNCTIONS ------------------------------------------------------------------
 
-  
+ -- Obtain programstageinstanceid by programstage and program instance
+ 
+CREATE OR REPLACE FUNCTION get_programstageinstance(_pi_id integer, _ps_uid VARCHAR (11)) RETURNS setof programstageinstance as 
+
+$$
+BEGIN 
+ 	RETURN query (SELECT psi.*  FROM programstageinstance psi INNER JOIN programstage ps on psi.programstageid = ps.programstageid 
+				WHERE psi.programinstanceid = _pi_id AND ps.uid = _ps_uid and psi.deleted='f') ;
+				
+END;
+$$
+LANGUAGE 'plpgsql';
 
  ----- Obtain oldest (or unique) event of a program within a defined stages
  
@@ -189,13 +201,9 @@ DECLARE aux_datavalue trackedentitydatavalue;
 	    
 	BEGIN
 	
-		select programstageinstance.*  into event_src from  programstageinstance, programstage
-			where programstage.programstageid=programstageinstance.programstageid 
-			and programstage.uid=_ps_src and programstageinstance.programinstanceid=_pi_id and programstageinstance.deleted='f';
+		select *  into event_src from  get_programstageinstance (_pi_id,_ps_src);
 
-		select programstageinstance.* into event_dst from  programstageinstance, programstage
-			where programstage.programstageid=programstageinstance.programstageid 
-			and programstage.uid=_ps_dst and programstageinstance.programinstanceid=_pi_id and programstageinstance.deleted='f'; --deleted set to 'f' in order to avoid deleted records
+		select *  into event_dst from   get_programstageinstance (_pi_id,_ps_dst); --deleted set to 'f' in order to avoid deleted records
 
 		IF  event_src.programstageinstanceid is not null and event_dst.programstageinstanceid is not null 
 		
@@ -250,10 +258,8 @@ RETURNS value_with_date AS $$
 	DECLARE end_event programstageinstance;
 	
 	BEGIN
-		select psi.* INTO start_event FROM programstageinstance psi INNER JOIN programstage ps on psi.programstageid = ps.programstageid 
-			WHERE psi.programinstanceid = _pi_id AND ps.uid = _ps_start and psi.deleted='f';
-		select psi.* INTO end_event FROM programstageinstance psi INNER JOIN programstage ps on psi.programstageid = ps.programstageid 
-			WHERE psi.programinstanceid = _pi_id AND ps.uid = _ps_end and psi.deleted='f';
+		select * INTO start_event FROM get_programstageinstance (_pi_id,_ps_start);
+		select * INTO end_event FROM get_programstageinstance (_pi_id,_ps_end);
 			
 		IF (start_event.executiondate IS NOT NULL) AND (end_event.executiondate IS NOT NULL) -- if there is an executiondate defined for both events
 			THEN
@@ -333,15 +339,9 @@ DECLARE substract value_with_date;
 
 		BEGIN 
 		
-		select psi.* into event_src1 from programstageinstance psi 			
-			inner join programstage ps on psi.programstageid=ps.programstageid
-				where psi.programinstanceid=_pi_id
-					and ps.uid = _ps_src1 and psi.deleted='f';
+		select * into event_src1 from get_programstageinstance (_pi_id,_ps_src1);
 					
-		select psi.* into event_src2 from programstageinstance psi 			
-			inner join programstage ps on psi.programstageid=ps.programstageid
-				where psi.programinstanceid=_pi_id
-					and ps.uid = _ps_src2 and psi.deleted='f';
+		select * into event_src2 from get_programstageinstance (_pi_id,_ps_src2);
 				
 
 
@@ -363,8 +363,7 @@ DECLARE substract value_with_date;
 				_de_src2
 				);		
 				
-				SELECT programstageinstanceid INTO target_event_id FROM programstageinstance psi INNER JOIN programstage ps on psi.programstageid = ps.programstageid 
-						WHERE psi.programinstanceid = _pi_id AND ps.uid = _ps_target;
+				SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
 				
 				
 					IF aux_datavalue_src1.value is not null and aux_datavalue_src2.value is not null -- if there is value for both datavalues within the events
@@ -429,15 +428,9 @@ DECLARE division value_with_date;
 
 		BEGIN 
 		
-		select psi.* into event_src1 from programstageinstance psi 			
-			inner join programstage ps on psi.programstageid=ps.programstageid
-				where psi.programinstanceid=_pi_id
-					and ps.uid = _ps_src1 and psi.deleted='f';
+		select * into event_src1 from  get_programstageinstance (_pi_id,_ps_src1);
 					
-		select psi.* into event_src2 from programstageinstance psi 			
-			inner join programstage ps on psi.programstageid=ps.programstageid
-				where psi.programinstanceid=_pi_id
-					and ps.uid = _ps_src2 and psi.deleted='f';
+		select * into event_src2 from get_programstageinstance (_pi_id,_ps_src2);
 				
 
 
@@ -515,8 +508,7 @@ $BODY$
 	BEGIN
 		SELECT * INTO count_with_date FROM get_events_count (_pi_id, ps_array);
 		
-		SELECT programstageinstanceid INTO target_event_id FROM programstageinstance psi INNER JOIN programstage ps on psi.programstageid = ps.programstageid 
-				WHERE psi.programinstanceid = _pi_id AND ps.uid = _ps_target;
+		SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
 		
 		IF (count_with_date.val IS NOT NULL) AND (target_event_id IS NOT NULL)
 		THEN			
@@ -549,11 +541,7 @@ CREATE OR REPLACE FUNCTION number_events_in_repeatable_program_stage (_pi_id int
 
 	BEGIN
 		FOR event_id_with_rank IN (
-			SELECT psi.programstageinstanceid, rank() OVER (ORDER BY psi.executiondate, psi.created), MAX(psi.lastupdated) OVER () AS lastupdated FROM programstageinstance psi 
-				INNER JOIN programstage ps ON psi.programstageid = ps.programstageid
-				WHERE ps.uid = _ps_src
-				AND psi.programinstanceid = _pi_id
-				AND psi.deleted = false
+			SELECT programstageinstanceid, rank() OVER (ORDER BY executiondate, created), MAX(lastupdated) OVER () AS lastupdated FROM get_programstageinstance (_pi_id,_ps_src)
 		)
 		
 		LOOP
