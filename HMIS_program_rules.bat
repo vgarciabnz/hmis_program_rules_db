@@ -3,12 +3,17 @@
 SET HMIS_HOME=C:\Program Files (x86)\DHIS2
 SET DHIS2_HOME=%HMIS_HOME%\DHIS
 SET FILES_HOME=%DHIS2_HOME%\files
+SET SQL_HOME=%DHIS2_HOME%\sql
 SET PGPASSFILE=%HMIS_HOME%\pgpass.conf
 
 SET COMMON_FUNCTIONS_SQL=common_function.sql
 SET MENTAL_HEALTH_SQL=mental_health.sql
 SET MAIN_SQL=main.sql
 
+:: Create sql folder if not exists
+if not exist "%SQL_HOME%" mkdir "%SQL_HOME%"
+
+:: Read database connection parameters
 FOR /F "usebackq eol=; tokens=1,2* delims==" %%i IN ("%DHIS2_HOME%\dhis.conf") DO CALL :read_params %%i %%j
 
 	GOTO execute_sql
@@ -48,17 +53,17 @@ SET PSQL_EXE="%HMIS_HOME%\pgsql\bin\psql.exe" -qAtX -U %DHIS2_DB_USERNAME% -d %D
 	:: TODO Manage unmodified files. Do not generate and execute files if not modified. Execute only 'main.sql'
 
 	:: Read files from constant description
-	%PSQL_EXE% -c "SELECT description FROM constant WHERE name = '%COMMON_FUNCTIONS_SQL%'" > "%FILES_HOME%\%COMMON_FUNCTIONS_SQL%"
-	%PSQL_EXE% -c "SELECT description FROM constant WHERE name = '%MENTAL_HEALTH_SQL%'" > "%FILES_HOME%\%MENTAL_HEALTH_SQL%"
-	%PSQL_EXE% -c "SELECT description FROM constant WHERE name = '%MAIN_SQL%'" > "%FILES_HOME%\%MAIN_SQL%"
+	%PSQL_EXE% -c "SELECT description FROM constant WHERE name = '%COMMON_FUNCTIONS_SQL%'" > "%SQL_HOME%\%COMMON_FUNCTIONS_SQL%"
+	%PSQL_EXE% -c "SELECT description FROM constant WHERE name = '%MENTAL_HEALTH_SQL%'" > "%SQL_HOME%\%MENTAL_HEALTH_SQL%"
+	%PSQL_EXE% -c "SELECT description FROM constant WHERE name = '%MAIN_SQL%'" > "%SQL_HOME%\%MAIN_SQL%"
 
-	%PSQL_EXE% -f "%FILES_HOME%\%COMMON_FUNCTIONS_SQL%"
-	%PSQL_EXE% -f "%FILES_HOME%\%MENTAL_HEALTH_SQL%"
-	%PSQL_EXE% -f "%FILES_HOME%\%MAIN_SQL%"
+	%PSQL_EXE% -f "%SQL_HOME%\%COMMON_FUNCTIONS_SQL%"
+	%PSQL_EXE% -f "%SQL_HOME%\%MENTAL_HEALTH_SQL%"
+	%PSQL_EXE% -f "%SQL_HOME%\%MAIN_SQL%"
 	
-	DEL "%FILES_HOME%\%COMMON_FUNCTIONS_SQL%"
-	DEL "%FILES_HOME%\%MENTAL_HEALTH_SQL%"
-	DEL "%FILES_HOME%\%MAIN_SQL%"
+	DEL "%SQL_HOME%\%COMMON_FUNCTIONS_SQL%"
+	DEL "%SQL_HOME%\%MENTAL_HEALTH_SQL%"
+	DEL "%SQL_HOME%\%MAIN_SQL%"
 	
 	timeout /t 10 /nobreak
 	
