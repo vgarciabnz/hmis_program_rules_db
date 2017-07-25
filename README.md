@@ -13,6 +13,17 @@ The routine can be executed on demand by using a GUI like PgAdminIII or directly
 3. `main.sql`
 
 ### Scheduled
+#### Windows
 The script `HMIS_program_rules.bat` runs the routine every 10 seconds in an endless loop. In order to work, the three sql scripts must be loaded into the HMIS like `resources` (in Apps > Reports > Resources). The resource name does not matter; the file name does (do not modify the file name).
 
 This script can be scheduled using the "Scheduled tasks" tool in Windows to run the script when the system starts.
+
+#### Linux
+The script `HMIS_program_rules.sh` can be added as a cron job that is executed every minute.
+
+Crontab configuration:
+```
+MAILTO=""
+* * * * * /home/msf/HMIS_program_rules.sh* * * * * /home/msf/HMIS_program_rules.sh > /dev/null
+
+```
