@@ -267,13 +267,7 @@ LANGUAGE 'plpgsql';
 	DECLARE target_event_id INTEGER;
 	
 	BEGIN
-		SELECT (value::integer - 1)::text,lastupdated INTO count_with_date FROM get_data_value_of_first_event (_pi_id, 'XuThsezwYbZ','TK_MH58');
-		
-		IF count_with_date.val::integer < 0 
-			THEN 
-				SELECT '0' into count_with_date.val;
-			
-		END IF;
+		SELECT greatest(value::integer - 1,0)::text,lastupdated INTO count_with_date FROM get_data_value_of_first_event (_pi_id, 'XuThsezwYbZ','TK_MH58');
 		
 		SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id, _ps_target);
 		
