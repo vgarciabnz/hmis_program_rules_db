@@ -269,7 +269,13 @@ LANGUAGE 'plpgsql';
 	BEGIN
 		SELECT (value::integer - 1)::text,lastupdated INTO count_with_date FROM get_data_value_of_first_event (_pi_id, 'XuThsezwYbZ','TK_MH58');
 		
-		SELECT programstageinstanceid INTO target_event_id FROM get_data_value_of_first_event (_pi_id, _ps_target,'TK_MH58');
+		IF count_with_date.val::integer < 0 
+			THEN 
+				SELECT '0' into count_with_date.val;
+			
+		END IF;
+		
+		SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id, _ps_target);
 		
 		IF (count_with_date.val IS NOT NULL) AND (target_event_id IS NOT NULL)
 		THEN			
