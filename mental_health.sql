@@ -254,9 +254,9 @@ $$
 	DECLARE target_event_id INTEGER;
 	
 	BEGIN
-		SELECT (value::integer - 1)::text,lastupdated INTO count_with_date FROM get_data_value_of_first_event (_pi_id, 'XuThsezwYbZ','TK_MH58');
+		SELECT greatest(value::integer - 1,0)::text,lastupdated INTO count_with_date FROM get_data_value_of_first_event (_pi_id, 'XuThsezwYbZ','TK_MH58');
 		
-		SELECT programstageinstanceid INTO target_event_id FROM get_data_value_of_first_event (_pi_id, _ps_target,'TK_MH58');
+		SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id, _ps_target);
 		
 		IF (count_with_date.val IS NOT NULL) AND (target_event_id IS NOT NULL)
 		THEN			
@@ -354,7 +354,86 @@ CREATE OR REPLACE FUNCTION mh_save_total_beneficiaries (_pi_id INTEGER, _de_targ
 $$
 LANGUAGE plpgsql;
 
+---------------------------------------------------------------------------
+ 
+CREATE OR REPLACE FUNCTION mh_condition_at_exit (_programinstanceid integer,_de_target VARCHAR(50), _ps_target VARCHAR(11)) RETURNS void AS
 
+$$
+DECLARE mhos_values numeric;
+DECLARE mhos_variation_values value_with_date;
+DECLARE cgi_values value_with_date;
+DECLARE age_value integer;
+DECLARE condition_exit value_with_date;
+DECLARE target_event_id integer;
+DECLARE number_consultations numeric;
+
+BEGIN 
+		SELECT MAX(value::numeric)  INTO mhos_values from get_data_value_by_program_stages (_programinstanceid,array['tmsr4EJaSPz'], 'TK_MH12');
+		SELECT value, lastupdated INTO cgi_values from get_data_value_by_program_stages (_programinstanceid,array['XuThsezwYbZ'], 'TK_MH14');
+		SELECT value,lastupdated INTO mhos_variation_values  from  get_data_value_by_program_stages (_programinstanceid,array['XuThsezwYbZ'],'TK_MH39');
+		SELECT value::integer INTO age_value from get_data_value_by_program_stages (_programinstanceid,array['XuThsezwYbZ'],'TK_MH36');
+		SELECT value::numeric INTO number_consultations from get_data_value_by_program_stages(_programinstanceid,array['XuThsezwYbZ'],'TK_MH58');
+		
+	
+	IF number_consultations=1  -- Only one consultation, meaning that it is impossible to determine the patients condition at exit
+		THEN 
+			condition_exit = ('3',greatest(mhos_variation_values.lastupdated,cgi_values.lastupdated));
+		
+	ELSEIF mhos_values>0 and  cgi_values.val is not null and cgi_values.val::numeric>0 -- if there is value for MHOS Scales in any consultation and CGI improvement is not null (and assessed)
+		THEN
+			IF ((mhos_variation_values.val::numeric >=4 and age_value >=15) or (mhos_variation_values.val::numeric >=7 and age_value <15)) and cgi_values.val::numeric<4 --if MHOS variation is 4+ for Adults and 7+ for Children and there is CGI improvement
+				THEN
+					condition_exit = ('2',greatest(mhos_variation_values.lastupdated,cgi_values.lastupdated)); --if all of the conditions are true, then patient has improved
+				ELSE 
+					condition_exit = ('1',greatest(mhos_variation_values.lastupdated,cgi_values.lastupdated)); -- if not, patient has not improved
+			END IF;
+	
+	ELSEIF mhos_values>0  and (cgi_values.val is null or cgi_values.val::numeric=0) -- if there are values for MHOS scale but not for CGI Improvement (or not assessed)
+	
+		THEN 
+			IF ((mhos_variation_values.val::numeric >=4 and age_value >=15) or (mhos_variation_values.val::numeric >=7) and age_value <15) --then consider only MHOS Scale variation
+			
+				THEN
+						condition_exit = ('2',greatest(mhos_variation_values.lastupdated,cgi_values.lastupdated)); --if MHOS variation accomplish with the requirements explained above, patient has improved
+					ELSE 
+						condition_exit = ('1',greatest(mhos_variation_values.lastupdated,cgi_values.lastupdated)); -- if not, patient has not improved
+			END IF;
+	
+	ELSEIF  mhos_values=0 and cgi_values.val is not null and cgi_values.val::numeric>0  -- if there are no values for MHOS Score in any consultation and CGI is not null (and assessed)
+	
+		THEN
+			IF cgi_values.val::numeric<4 --only consider CGI-Improvement values
+				
+				THEN
+						condition_exit = ('2',greatest(mhos_variation_values.lastupdated,cgi_values.lastupdated));
+					ELSE 
+						condition_exit = ('1',greatest(mhos_variation_values.lastupdated,cgi_values.lastupdated));
+			END IF ;
+				
+	ELSE 	condition_exit = ('1',greatest(mhos_variation_values.lastupdated,cgi_values.lastupdated));	-- otherwise not improved
+			
+	END IF;
+	
+	
+	SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_programinstanceid,_ps_target);
+			
+	IF target_event_id IS NOT NULL
+		THEN
+		
+		PERFORM upsert_trackedentitydatavalue(
+				target_event_id,
+				(SELECT dataelementid FROM dataelement WHERE code = _de_target),
+				condition_exit.val,
+				'auto-generated',
+				condition_exit.lastupdated,
+				condition_exit.lastupdated
+			);
+		
+	END IF;
+
+END;
+$$
+  LANGUAGE 'plpgsql';
 -------------------------------------------------------------------------
 
 
@@ -373,17 +452,21 @@ $$
 			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH1', 'bgq04wsYMp7', 'TK_MH1', 'XuThsezwYbZ'); --Symptoms (from first consultation to closure)
 			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH11', 'tmsr4EJaSPz', 'TK_MH11', 'bgq04wsYMp7'); -- Type of individual intervention (from first consultation to admission)
 			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH10', 'tmsr4EJaSPz', 'TK_MH10', 'bgq04wsYMp7'); -- Type of consultation (from first consultation to admission)
-			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH13', 'tmsr4EJaSPz', 'TK_MH13', 'bgq04wsYMp7'); -- Severity of symptoms (from first consultation to admission)
-			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH14', 'tmsr4EJaSPz', 'TK_MH14', 'bgq04wsYMp7'); -- Functioning reduction (from first consultation to admission)
+			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH13', 'tmsr4EJaSPz', 'TK_MH13', 'bgq04wsYMp7'); -- CGI-Severity of illness (from first consultation to admission)
 			PERFORM copy_datavalue_between_non_repeatable_stages (program_instance_id, 'TK_MH61', 'tmsr4EJaSPz', 'TK_MH61', 'bgq04wsYMp7'); -- Complementary service - Psychiatric  care (from first consultation to admission)
+			PERFORM copy_last_datavalue_between_stages (program_instance_id,'TK_MH14','tmsr4EJaSPz','TK_MH14','XuThsezwYbZ'); -- CGI - Improvement (from last consultation to closure)
+
 			
 			-- Save length of intervention
 			PERFORM mh_save_length_of_intervention (program_instance_id,'bgq04wsYMp7','XuThsezwYbZ','XuThsezwYbZ'); -- program instance, program stage start date, ps end date, ps target
 			
-			-- Severity of symptoms and function variation
-			PERFORM substract_datavalue_between_non_repeatable_stages (program_instance_id,'TK_MH13','tmsr4EJaSPz','TK_MH13','XuThsezwYbZ','TK_MH38','XuThsezwYbZ'); -- pi, dataelement1, ps1, dt2,ps2, dt target, ps target
-			PERFORM substract_datavalue_between_non_repeatable_stages (program_instance_id,'TK_MH14','tmsr4EJaSPz','TK_MH14','XuThsezwYbZ','TK_MH39','XuThsezwYbZ');
-				
+			-- CGI-Severity of illness variation
+			PERFORM substract_datavalue_between_events (program_instance_id,'TK_MH13','tmsr4EJaSPz','TK_MH13','tmsr4EJaSPz','TK_MH38','XuThsezwYbZ'); -- pi, dataelement1, ps1, dt2,ps2, dt target, ps target
+			--PERFORM substract_datavalue_between_events (program_instance_id,'TK_MH14','tmsr4EJaSPz','TK_MH14','tmsr4EJaSPz','TK_MH39','XuThsezwYbZ');
+			
+			-- MHOS Scale Variation
+			PERFORM substract_datavalue_between_events (program_instance_id,'TK_MH12','tmsr4EJaSPz','TK_MH12','tmsr4EJaSPz','TK_MH39','XuThsezwYbZ');
+			
 			-- number of consultations
 			PERFORM save_events_count(program_instance_id,array['tmsr4EJaSPz'],'TK_MH58','XuThsezwYbZ');
 
