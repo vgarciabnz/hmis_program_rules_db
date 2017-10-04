@@ -499,7 +499,10 @@ $$
 			
 			-- Total number of beneficiaries
 			PERFORM mh_save_total_beneficiaries ( program_instance_id, 'TK_MH68', 'XuThsezwYbZ');
-						
+		
+			-- Condition at exit
+			
+			PERFORM mh_condition_at_exit ( program_instance_id, 'TK_MH21','XuThsezwYbZ');
 			RETURN QUERY SELECT program_instance_id;
 		END LOOP;
 	
