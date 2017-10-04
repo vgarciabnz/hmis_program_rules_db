@@ -82,58 +82,54 @@ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION mh_save_number_consultations_by_type( _pi_id integer, _value text, _de_target VARCHAR(50), _ps_target VARCHAR(11)) RETURNS void
 AS $$
 
+	DECLARE number_with_date value_with_date;
+	DECLARE target_event_id integer;
 
-DECLARE number_with_date value_with_date;
-DECLARE target_event_id integer;
-
-
-  BEGIN
-	SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['tmsr4EJaSPz'], 'TK_MH53') where value=_value;
+	BEGIN
+		SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['tmsr4EJaSPz'], 'TK_MH53') where value=_value;
+		SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
 	
-	SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
-	
-	IF (number_with_date.val IS NOT NULL) AND (target_event_id IS NOT NULL) 
+		IF (number_with_date.val IS NOT NULL) AND (target_event_id IS NOT NULL)
 		THEN
 		
-		PERFORM upsert_trackedentitydatavalue(
-			target_event_id,
-			(SELECT dataelementid FROM dataelement WHERE code = _de_target),
-			number_with_date.val,
-			'auto-generated',
-			number_with_date.lastupdated,
-			number_with_date.lastupdated
-		);
-	END IF;
-	
-  END;
-  $$
-  LANGUAGE 'plpgsql';
+			PERFORM upsert_trackedentitydatavalue(
+				target_event_id,
+				(SELECT dataelementid FROM dataelement WHERE code = _de_target),
+				number_with_date.val,
+				'auto-generated',
+				number_with_date.lastupdated,
+				number_with_date.lastupdated
+			);
+		END IF;
+	END;
+$$
+LANGUAGE 'plpgsql';
 
   ------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION mh_save_session_mode ( _pi_id integer,_de_target VARCHAR(50), _ps_target VARCHAR(11)) RETURNS void AS
-
 $$
-DECLARE session_mode value_with_date;
-DECLARE f2f_values trackedentitydatavalue;
-DECLARE remote_values trackedentitydatavalue;
-DECLARE target_event_id integer;
 
-BEGIN 
+	DECLARE session_mode value_with_date;
+	DECLARE f2f_values trackedentitydatavalue;
+	DECLARE remote_values trackedentitydatavalue;
+	DECLARE target_event_id integer;
+
+	BEGIN 
 		SELECT * into f2f_values from get_data_value_by_program_stages(_pi_id,array['XuThsezwYbZ'], 'TK_MH75');
 		SELECT * into remote_Values from get_data_value_by_program_stages(_pi_id,array['XuThsezwYbZ'], 'TK_MH74');
 		
-	IF f2f_values.value <>'0' and remote_values.value <>'0' THEN session_mode = ('2',greatest(f2f_values.lastupdated,remote_values.lastupdated));
-	ELSEIF f2f_values.value <>'0' and remote_values.value ='0' THEN session_mode = ('1',greatest(f2f_values.lastupdated,remote_values.lastupdated));
-	ELSEIF f2f_values.value='0' and remote_values.value<>'0' THEN session_mode = ('3',greatest(f2f_values.lastupdated,remote_values.lastupdated));
+		IF f2f_values.value <>'0' and remote_values.value <>'0' THEN session_mode = ('2',greatest(f2f_values.lastupdated,remote_values.lastupdated));
+		ELSEIF f2f_values.value <>'0' and remote_values.value ='0' THEN session_mode = ('1',greatest(f2f_values.lastupdated,remote_values.lastupdated));
+		ELSEIF f2f_values.value='0' and remote_values.value<>'0' THEN session_mode = ('3',greatest(f2f_values.lastupdated,remote_values.lastupdated));
 
-	END IF;
+		END IF;
 	
-	SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
-			
-	IF (session_mode.val IS NOT NULL) AND (target_event_id IS NOT NULL)
+		SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
+	
+		IF (session_mode.val IS NOT NULL) AND (target_event_id IS NOT NULL)
 		THEN
 		
-		PERFORM upsert_trackedentitydatavalue(
+			PERFORM upsert_trackedentitydatavalue(
 				target_event_id,
 				(SELECT dataelementid FROM dataelement WHERE code = _de_target),
 				session_mode.val,
@@ -148,7 +144,7 @@ BEGIN
 	END IF;
 END;
 $$
-  LANGUAGE 'plpgsql';
+LANGUAGE 'plpgsql';
   
   
 -----------------------------------------------------------------------------------------------
@@ -157,27 +153,70 @@ $$
 CREATE OR REPLACE FUNCTION mh_save_patient_under_psycotropics( _pi_id integer, _de_target VARCHAR(50), _ps_target VARCHAR(11)) RETURNS void
 AS $$
 
+	DECLARE number_with_date value_with_date;
+	DECLARE target_event_id integer;
 
-DECLARE number_with_date value_with_date;
-DECLARE target_event_id integer;
-
-
-  BEGIN
-	SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['tmsr4EJaSPz'], 'TK_MH17') where value='true';
+	BEGIN
+		SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['tmsr4EJaSPz'], 'TK_MH17') where value='true';
 	
-	
-	IF number_with_date.val is not null 
+		IF number_with_date.val is not null 
 		THEN
 		
-		SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
+			SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
 			
-		IF (target_event_id IS NOT NULL)
+			IF (target_event_id IS NOT NULL)
 			THEN
 			
-			IF number_with_date.val <> '0'
-			
+				IF number_with_date.val <> '0'
 				THEN
 					
+					PERFORM upsert_trackedentitydatavalue(
+						target_event_id,
+						(SELECT dataelementid FROM dataelement WHERE code = _de_target),
+						'true',
+						'auto-generated',
+						number_with_date.lastupdated,
+						number_with_date.lastupdated
+					);
+				ELSE
+			
+					PERFORM upsert_trackedentitydatavalue(
+						target_event_id,
+						(SELECT dataelementid FROM dataelement WHERE code = _de_target),
+						'false',
+						'auto-generated',
+						number_with_date.lastupdated,
+						number_with_date.lastupdated
+					);
+			
+				END IF;
+			END IF;
+		END IF;
+	
+	END;
+$$
+LANGUAGE 'plpgsql';
+
+ ------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION mh_save_patient_referred ( _pi_id integer, _de_target VARCHAR(50), _ps_target VARCHAR(11)) RETURNS void
+AS $$
+
+	DECLARE number_with_date value_with_date;
+	DECLARE target_event_id integer;
+
+	BEGIN
+		SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['tmsr4EJaSPz'], 'TK_MH61');
+	
+		SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
+	
+		IF target_event_id IS NOT NULL 
+		THEN
+
+			RAISE NOTICE 'value %', number_with_date.val;
+		
+			IF number_with_date.val <> '0'
+			THEN
 				PERFORM upsert_trackedentitydatavalue(
 					target_event_id,
 					(SELECT dataelementid FROM dataelement WHERE code = _de_target),
@@ -186,9 +225,9 @@ DECLARE target_event_id integer;
 					number_with_date.lastupdated,
 					number_with_date.lastupdated
 				);
-			
+
 			ELSE 
-			
+					
 				PERFORM upsert_trackedentitydatavalue(
 					target_event_id,
 					(SELECT dataelementid FROM dataelement WHERE code = _de_target),
@@ -197,72 +236,20 @@ DECLARE target_event_id integer;
 					number_with_date.lastupdated,
 					number_with_date.lastupdated
 				);
-			
+
 			END IF;
 		END IF;
-	END IF;
 	
-  END;
-  $$
-  LANGUAGE 'plpgsql';
-
- ------------------------------------------------------------
-
-CREATE OR REPLACE FUNCTION mh_save_patient_referred ( _pi_id integer, _de_target VARCHAR(50), _ps_target VARCHAR(11)) RETURNS void
-AS $$
-
-DECLARE number_with_date value_with_date;
-DECLARE target_event_id integer;
-
-BEGIN
-	SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['tmsr4EJaSPz'], 'TK_MH61');
-	
-	SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
-	
-	IF target_event_id IS NOT NULL 
-
-		THEN
-
-		RAISE NOTICE 'value %', number_with_date.val;
-		
-		IF number_with_date.val <> '0'
-			THEN
-			PERFORM upsert_trackedentitydatavalue(
-				target_event_id,
-				(SELECT dataelementid FROM dataelement WHERE code = _de_target),
-				'true',
-				'auto-generated',
-				number_with_date.lastupdated,
-				number_with_date.lastupdated
-			);
-
-			ELSE 
-					
-			PERFORM upsert_trackedentitydatavalue(
-				target_event_id,
-				(SELECT dataelementid FROM dataelement WHERE code = _de_target),
-				'false',
-				'auto-generated',
-				number_with_date.lastupdated,
-				number_with_date.lastupdated
-			);
-
-		
-		END IF;
-	END IF;
-	
-END;
+	END;
 $$
 LANGUAGE 'plpgsql';
 
 
 -----------------------------------------------------------------------------------------------
 
- CREATE OR REPLACE FUNCTION mh_save_followup_count (_pi_id INTEGER, _ps_target varchar (11)) RETURNS void as
+CREATE OR REPLACE FUNCTION mh_save_followup_count (_pi_id INTEGER, _ps_target varchar (11)) RETURNS void as
+$$
  
- $$
- 
-
 	DECLARE count_with_date value_with_date;
 	DECLARE target_event_id INTEGER;
 	
@@ -293,47 +280,44 @@ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION mh_save_patient_referred_MSF ( _pi_id integer, _de_target VARCHAR(50), _ps_target VARCHAR(11)) RETURNS void
 AS $$
 
-DECLARE number_with_date value_with_date;
-DECLARE target_event_id integer;
+	DECLARE number_with_date value_with_date;
+	DECLARE target_event_id integer;
 
-BEGIN
-	SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['tmsr4EJaSPz'], 'TK_MH61') where value='2.1';
+	BEGIN
+		SELECT count(1),max(lastupdated) into number_with_date from get_data_value_by_program_stages(_pi_id,array['tmsr4EJaSPz'], 'TK_MH61') where value='2.1';
 	
-	SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
+		SELECT programstageinstanceid INTO target_event_id FROM get_programstageinstance (_pi_id,_ps_target);
 	
-	IF target_event_id IS NOT NULL 
-
+		IF target_event_id IS NOT NULL 
 		THEN
 
-		RAISE NOTICE 'value %', number_with_date.val;
+			RAISE NOTICE 'value %', number_with_date.val;
 		
-		IF number_with_date.val <> '0'
+			IF number_with_date.val <> '0'
 			THEN
-			PERFORM upsert_trackedentitydatavalue(
-				target_event_id,
-				(SELECT dataelementid FROM dataelement WHERE code = _de_target),
-				'true',
-				'auto-generated',
-				number_with_date.lastupdated,
-				number_with_date.lastupdated
-			);
+				PERFORM upsert_trackedentitydatavalue(
+					target_event_id,
+					(SELECT dataelementid FROM dataelement WHERE code = _de_target),
+					'true',
+					'auto-generated',
+					number_with_date.lastupdated,
+					number_with_date.lastupdated
+				);
 
-			ELSE 
-					
-			PERFORM upsert_trackedentitydatavalue(
-				target_event_id,
-				(SELECT dataelementid FROM dataelement WHERE code = _de_target),
-				'false',
-				'auto-generated',
-				number_with_date.lastupdated,
-				number_with_date.lastupdated
-			);
+			ELSE 					
+				PERFORM upsert_trackedentitydatavalue(
+					target_event_id,
+					(SELECT dataelementid FROM dataelement WHERE code = _de_target),
+					'false',
+					'auto-generated',
+					number_with_date.lastupdated,
+					number_with_date.lastupdated
+				);
 
-		
-		END IF;
-	END IF;
 	
-END;
+			END IF;
+		END IF;
+	END;
 $$
 LANGUAGE 'plpgsql';
 
@@ -485,27 +469,23 @@ $$
 			
 			-- number of consultations
 			PERFORM save_events_count(program_instance_id,array['tmsr4EJaSPz'],'TK_MH58','XuThsezwYbZ');
-			
+
 			-- number of followups
 			PERFORM mh_save_followup_count (program_instance_id,'XuThsezwYbZ');
 			
 			--average time between sessions
 			PERFORM divide_datavalue_between_non_repeatable_stages  (program_instance_id,'TK_MH24','XuThsezwYbZ','TK_MH52','XuThsezwYbZ','TK_MH23','XuThsezwYbZ');
 			
-			-- number of face-to-face consultations
-			
+			-- number of face-to-face consultations			
 			PERFORM mh_save_number_consultations_by_type (program_instance_id,'true','TK_MH75','XuThsezwYbZ');
 			
 			-- number of remote consultations 
-			
 			PERFORM mh_save_number_consultations_by_type (program_instance_id,'false','TK_MH74','XuThsezwYbZ');
 			
 			--Session mode
-			
 			PERFORM mh_save_session_mode ( program_instance_id,'TK_MH54','XuThsezwYbZ'); 
 			
 			-- Patient took psychiatry treatment at least once		
-			
 			PERFORM mh_save_patient_under_psycotropics( program_instance_id, 'TK_MH72', 'XuThsezwYbZ');
 			
 			-- Patient referred 
@@ -519,16 +499,14 @@ $$
 			
 			-- Total number of beneficiaries
 			PERFORM mh_save_total_beneficiaries ( program_instance_id, 'TK_MH68', 'XuThsezwYbZ');
-			
+		
 			-- Condition at exit
 			
 			PERFORM mh_condition_at_exit ( program_instance_id, 'TK_MH21','XuThsezwYbZ');
-			
-			
 			RETURN QUERY SELECT program_instance_id;
 		END LOOP;
 	
 	END;
 $$
-  LANGUAGE plpgsql;
+LANGUAGE plpgsql;
 
