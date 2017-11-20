@@ -246,7 +246,7 @@ $$
 			END IF;
 		END IF;
 	END;
-  $BODY$
+  $$
   LANGUAGE plpgsql;
   
   -- Given a specific programinstanceid, copy the value from one dataelement in the last event of a programstage into another dataelement in another programstage.
@@ -266,7 +266,7 @@ CREATE OR REPLACE FUNCTION copy_last_datavalue_between_stages(
     _de_dst character varying,
     _ps_dst character varying)
   RETURNS void AS
-$BODY$
+$$
  
 DECLARE event_src programstageinstance;
 DECLARE event_dst programstageinstance;
@@ -311,7 +311,7 @@ DECLARE aux_datavalue trackedentitydatavalue;
 		
 		END IF;
 	END;
-  $BODY$
+  $$
   LANGUAGE plpgsql;
 
 		
