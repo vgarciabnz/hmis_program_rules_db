@@ -19,9 +19,19 @@
  DROP FUNCTION save_events_count (_pi_id INTEGER,ps_array VARCHAR(11)[],_de_target VARCHAR(50), _ps_target VARCHAR(11));
  DROP FUNCTION number_events_in_repeatable_program_stage (_pi_id integer, _ps_src character varying, _de_dst character varying);
  */
+
+ -----------------------------------------------------------------------------------------------------------------------------
+ ------------------------------------------- TYPES ---------------------------------------------------------------------------
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'value_with_date') THEN
+        CREATE TYPE value_with_date as (val TEXT, lastupdated TIMESTAMP WITHOUT TIME ZONE);
+    END IF;
+    --more types here...
+END$$;
  
  -----------------------------------------------------------------------------------------------------------------------------
--------------------------------------------- FUNCTIONS ------------------------------------------------------------------
+ ------------------------------------------- FUNCTIONS -----------------------------------------------------------------------
 
  -- Obtain programstageinstanceid by programstage and program instance
  
