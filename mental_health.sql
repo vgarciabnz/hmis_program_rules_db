@@ -344,7 +344,7 @@ CREATE OR REPLACE FUNCTION mh_save_total_beneficiaries (_pi_id INTEGER, _de_targ
 			PERFORM upsert_trackedentitydatavalue(
 				dst_event.programstageinstanceid,
 				(SELECT dataelementid FROM dataelement WHERE code = _de_target),
-				total.val,
+				(total.val::numeric+1)::text,
 				'auto-generated',
 				total.lastupdated,
 				total.lastupdated);
